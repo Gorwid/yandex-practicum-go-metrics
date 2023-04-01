@@ -80,10 +80,10 @@ func mainpage(store MemStorage) func(answer http.ResponseWriter, req *http.Reque
 	// Вообще, мне этот вариант подсказали, я бы скорее всего делал через глобальные перменные.
 
 	return func(answer http.ResponseWriter, req *http.Request) {
-		splitUrl := strings.Split(req.URL.Path, "/")
+		splitURL := strings.Split(req.URL.Path, "/")
 
-		if req.Method == http.MethodPost && splitUrl[1] == "update" {
-			store.storageUpdater(splitUrl)
+		if req.Method == http.MethodPost && splitURL[1] == "update" {
+			store.storageUpdater(splitURL)
 			answer.Header().Add("Content-Type", "text/plain")
 		} else {
 			answer.Write([]byte(useThePostMethodMsg))
