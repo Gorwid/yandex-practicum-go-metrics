@@ -85,8 +85,9 @@ func mainpage(store MemStorage) func(answer http.ResponseWriter, req *http.Reque
 		if req.Method == http.MethodPost && splitURL[1] == "update" {
 			store.storageUpdater(splitURL)
 			answer.Header().Add("Content-Type", "text/plain")
+			answer.WriteHeader(http.StatusOK)
 		} else {
-			answer.Write([]byte(useThePostMethodMsg))
+			answer.WriteHeader(http.StatusNotFound)
 		}
 	}
 }
