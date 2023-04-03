@@ -58,13 +58,13 @@ func (m MemStorage) storageUpdater(val []string) int {
 		case val[2] == "gauge":
 			numGauge, err = strconv.ParseFloat(val[4], 64)
 			if err != nil {
-				return 400 // если неверное значение метрики, вернуть 400 Bad request
+				return http.StatusBadRequest // если неверное значение метрики, вернуть 400 Bad request
 			}
 			m.gauge[val[3]] = numGauge
 		case val[2] == "counter":
 			numCount, err = strconv.ParseInt(val[4], 10, 64)
 			if err != nil {
-				return 400 // если неверное значение метрики, вернуть 400 Bad request
+				return http.StatusBadRequest // если неверное значение метрики, вернуть 400 Bad request
 			}
 			if _, ok := m.counter[val[3]]; ok {
 				m.counter[val[3]] = m.counter[val[4]] + numCount
@@ -72,32 +72,28 @@ func (m MemStorage) storageUpdater(val []string) int {
 				m.counter[val[3]] = numCount
 			}
 		default:
-			return 501 // если нет нужного типа метрики, вернуть 501 Not Implemented
+			return http.StatusNotImplemented // если нет нужного типа метрики, вернуть 501 Not Implemented
 		}
 	} else {
-		return 404 // если не хватает какой-то части в адресе метрики, вернуть 404 Not found
+		return http.StatusNotFound // если не хватает какой-то части в адресе метрики, вернуть 404 Not found
 	}
-	return 200 // всё отработало штатно, вернуть 200 OK
+	return http.StatusOK // всё отработало штатно, вернуть 200 OK
 
 }
 
-// const useThePostMethodMsg = `Use the POST method:
-// http://localhost:8080/update/<metric_type>/<metric_name>/<metric_value>`
-
-// Декоратор для иньекции MemStorage
 func mainpage(store MemStorage) func(answer http.ResponseWriter, req *http.Request) {
 
 	return func(answer http.ResponseWriter, req *http.Request) {
 		splitURL := strings.Split(req.URL.Path, "/")
 		if req.Method == http.MethodPost && splitURL[1] == "update" {
 			responseCode := store.storageUpdater(splitURL)
-			if responseCode != 200 {
+			if responseCode != http.StatusOK {
 				http.Error(answer, "", responseCode)
 			}
 			answer.Header().Add("Content-Type", "text/plain")
 			answer.WriteHeader(http.StatusOK)
 		} else {
-			answer.WriteHeader(http.StatusNotFound)
+			http.Error(answer, "", http.StatusNotFound) // если метод и/или тип запроса не подошли, вернуть 404
 		}
 	}
 }
