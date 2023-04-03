@@ -31,6 +31,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,45 +46,52 @@ type MemStorage struct {
 	counter map[string]int64
 }
 
-func (m MemStorage) storageUpdater(val []string) {
+func (m MemStorage) storageUpdater(val []string) error {
 	var (
 		err      error
 		numGauge float64
 		numCount int64
 	)
-	switch {
-	case val[2] == "gauge":
-		numGauge, err = strconv.ParseFloat(val[4], 64)
-		if err != nil {
-			panic(err)
+	if val[2] != "" && val[3] != "" && val[4] != "" {
+		switch {
+		case val[2] == "gauge":
+			numGauge, err = strconv.ParseFloat(val[4], 64)
+			if err != nil {
+				return err
+			}
+			m.gauge[val[3]] = numGauge
+		case val[2] == "counter":
+			numCount, err = strconv.ParseInt(val[4], 10, 64)
+			if err != nil {
+				return err
+			}
+			if _, ok := m.counter[val[3]]; ok {
+				m.counter[val[3]] = m.counter[val[4]] + numCount
+			} else {
+				m.counter[val[3]] = numCount
+			}
+		default:
+			return errors.New("invalid update request")
 		}
-		m.gauge[val[3]] = numGauge
-	case val[2] == "counter":
-		numCount, err = strconv.ParseInt(val[4], 10, 64)
-		if err != nil {
-			panic(err)
-		}
-		if _, ok := m.counter[val[3]]; ok {
-			m.counter[val[3]] = m.counter[val[4]] + numCount
-		} else {
-			m.counter[val[3]] = numCount
-		}
+	} else {
+		return errors.New("invalid update request")
 	}
+	return nil
 
 }
 
-const useThePostMethodMsg = `Use the POST method:
-http://localhost:8080/update/<metric_type>/<metric_name>/<metric_value>`
+// const useThePostMethodMsg = `Use the POST method:
+// http://localhost:8080/update/<metric_type>/<metric_name>/<metric_value>`
 
 func mainpage(store MemStorage) func(answer http.ResponseWriter, req *http.Request) {
-	// Декоратор для обработчика.
-	// Вообще, мне этот вариант подсказали, я бы скорее всего делал через глобальные перменные.
 
 	return func(answer http.ResponseWriter, req *http.Request) {
 		splitURL := strings.Split(req.URL.Path, "/")
-
 		if req.Method == http.MethodPost && splitURL[1] == "update" {
-			store.storageUpdater(splitURL)
+			err := store.storageUpdater(splitURL)
+			if err != nil {
+				answer.WriteHeader(http.StatusBadRequest)
+			}
 			answer.Header().Add("Content-Type", "text/plain")
 			answer.WriteHeader(http.StatusOK)
 		} else {
