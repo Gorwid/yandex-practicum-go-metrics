@@ -31,7 +31,6 @@
 package main
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,7 +45,9 @@ type MemStorage struct {
 	counter map[string]int64
 }
 
-func (m MemStorage) storageUpdater(val []string) error {
+// Обновляет хранилище метрик.
+// Возвращает код ответа http в int
+func (m MemStorage) storageUpdater(val []string) int {
 	var (
 		err      error
 		numGauge float64
@@ -57,13 +58,13 @@ func (m MemStorage) storageUpdater(val []string) error {
 		case val[2] == "gauge":
 			numGauge, err = strconv.ParseFloat(val[4], 64)
 			if err != nil {
-				return err
+				return 400 // если неверное значение метрики, вернуть 400 Bad request
 			}
 			m.gauge[val[3]] = numGauge
 		case val[2] == "counter":
 			numCount, err = strconv.ParseInt(val[4], 10, 64)
 			if err != nil {
-				return err
+				return 400 // если неверное значение метрики, вернуть 400 Bad request
 			}
 			if _, ok := m.counter[val[3]]; ok {
 				m.counter[val[3]] = m.counter[val[4]] + numCount
@@ -71,26 +72,27 @@ func (m MemStorage) storageUpdater(val []string) error {
 				m.counter[val[3]] = numCount
 			}
 		default:
-			return errors.New("invalid update request")
+			return 501 // если нет нужного типа метрики, вернуть 501 Not Implemented
 		}
 	} else {
-		return errors.New("invalid update request")
+		return 404 // если не хватает какой-то части в адресе метрики, вернуть 404 Not found
 	}
-	return nil
+	return 200 // всё отработало штатно, вернуть 200 OK
 
 }
 
 // const useThePostMethodMsg = `Use the POST method:
 // http://localhost:8080/update/<metric_type>/<metric_name>/<metric_value>`
 
+// Декоратор для иньекции MemStorage
 func mainpage(store MemStorage) func(answer http.ResponseWriter, req *http.Request) {
 
 	return func(answer http.ResponseWriter, req *http.Request) {
 		splitURL := strings.Split(req.URL.Path, "/")
 		if req.Method == http.MethodPost && splitURL[1] == "update" {
-			err := store.storageUpdater(splitURL)
-			if err != nil {
-				answer.WriteHeader(http.StatusBadRequest)
+			responseCode := store.storageUpdater(splitURL)
+			if responseCode != 200 {
+				http.Error(answer, "", responseCode)
 			}
 			answer.Header().Add("Content-Type", "text/plain")
 			answer.WriteHeader(http.StatusOK)
